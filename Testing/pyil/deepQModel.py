@@ -25,17 +25,17 @@ class DeepQNetwork(nn.Module):
         self.device = T.device('cuda:0' if T.cuda.is_available() else 'cpu')
         self.to(self.device)
 
-    def forward(self, observation):
-        observation = T.Tensor(observation).to(self.device)
-        #observation = observation.view(-1, 3, 210, 160).to(self.device)
-        observation = observation.view(-1, 1, 185, 95)
-        observation = F.relu(self.conv1(observation))
-        observation = F.relu(self.conv2(observation))
-        observation = F.relu(self.conv3(observation))
-        #observation = observation.view(-1, 128*23*16).to(self.device)
-        observation = observation.view(-1, 128*19*8)
-        observation = F.relu(self.fc1(observation))
-        actions = self.fc2(observation)
+    def forward(self, state):
+        state = T.Tensor(state).to(self.device)
+        #state = state.view(-1, 3, 210, 160).to(self.device)
+        state = state.view(-1, 1, 185, 95)
+        state = F.relu(self.conv1(state))
+        state = F.relu(self.conv2(state))
+        state = F.relu(self.conv3(state))
+        #state = state.view(-1, 128*23*16).to(self.device)
+        state = state.view(-1, 128*19*8)
+        state = F.relu(self.fc1(state))
+        actions = self.fc2(state)
         return actions
 
 class Agent(object):
@@ -55,6 +55,10 @@ class Agent(object):
         self.replace_target_cnt = replace
         self.Q_eval = DeepQNetwork(alpha)
         self.Q_next = DeepQNetwork(alpha)
+        self.PATH = str("/Users/YELU/Desktop/ML/Reinforcement_Learning/Testing/pyil/Q_eval.pth")
+        #self.Q_eval.load_state_dict(T.load(self.PATH))
+        
+
 
     def storeTransition(self, state, action, reward, state_):
         if self.memCntr < self.memSize:
@@ -63,9 +67,9 @@ class Agent(object):
             self.memory[self.memCntr%self.memSize] = [state, action, reward, state_]
         self.memCntr += 1
 
-    def chooseAction(self, observation):
+    def chooseAction(self, state):
         rand = np.random.random()
-        actions = self.Q_eval.forward(observation)
+        actions = self.Q_eval.forward(state)
         if rand < 1 - self.EPSILON:
             action = T.argmax(actions[1]).item()
         else:
@@ -106,27 +110,28 @@ class Agent(object):
         loss = self.Q_eval.loss(Qtarget, Qpred).to(self.Q_eval.device)
         loss.backward()
         self.Q_eval.optimizer.step()
+        T.save(self.Q_eval.state_dict(), self.PATH)
         self.learn_step_counter += 1
 
         
 
 if __name__ == '__main__':
     env = gym.make('SpaceInvaders-v0')
-    brain = Agent(gamma=0.95, epsilon=1.0, 
+    agent = Agent(gamma=0.95, epsilon=1.0, 
                   alpha=0.003, maxMemorySize=5000,
                   replace=None)   
-    while brain.memCntr < brain.memSize:
-        observation = env.reset()
+    while agent.memCntr < agent.memSize:
+        state = env.reset()
         done = False
         while not done:
             # 0 no action, 1 fire, 2 move right, 3 move left, 4 move right fire, 5 move left fire
             action = env.action_space.sample()
-            observation_, reward, done, info = env.step(action)
+            next_state, reward, done, info = env.step(action)
             if done and info['ale.lives'] == 0:
                 reward = -100                  
-            brain.storeTransition(np.mean(observation[15:200,30:125], axis=2), action, reward, 
-                                np.mean(observation_[15:200,30:125], axis=2))
-            observation = observation_
+            agent.storeTransition(np.mean(state[15:200,30:125], axis=2), action, reward, 
+                                np.mean(next_state[15:200,30:125], axis=2))
+            state = next_state
     print('done initializing memory')
 
     scores = []
@@ -136,35 +141,35 @@ if __name__ == '__main__':
     # uncomment the line below to record every episode. 
     # env = wrappers.Monitor(env, "tmp/space-invaders-1", video_callable=lambda episode_id: True, force=True)
     for i in range(numGames):
-        print('starting game ', i+1, 'epsilon: %.4f' % brain.EPSILON)
-        epsHistory.append(brain.EPSILON)        
+        print('starting game ', i+1, 'epsilon: %.4f' % agent.EPSILON)
+        epsHistory.append(agent.EPSILON)        
         done = False
-        observation = env.reset()
-        frames = [np.sum(observation[15:200,30:125], axis=2)]
+        state = env.reset()
+        frames = [np.sum(state[15:200,30:125], axis=2)]
         score = 0
         lastAction = 0   
         while not done:
             if len(frames) == 3:
-                action = brain.chooseAction(frames)
+                action = agent.chooseAction(frames)
                 frames = []
             else:
                 action = lastAction
-            observation_, reward, done, info = env.step(action)
+            next_state, reward, done, info = env.step(action)
             score += reward
-            frames.append(np.sum(observation_[15:200,30:125], axis=2))
+            frames.append(np.sum(next_state[15:200,30:125], axis=2))
             if done and info['ale.lives'] == 0:
                 reward = -100 
-            brain.storeTransition(np.mean(observation[15:200,30:125], axis=2), action, reward, 
-                                  np.mean(observation_[15:200,30:125], axis=2))
-            observation = observation_            
-            brain.learn(batch_size)
+            agent.storeTransition(np.mean(state[15:200,30:125], axis=2), action, reward, 
+                                  np.mean(next_state[15:200,30:125], axis=2))
+            state = next_state            
+            agent.learn(batch_size)
             lastAction = action
             env.render()
         scores.append(score)
-        print('score:',score)
+        print('reward:',score)
     x = [i+1 for i in range(numGames)]
-    fileName = str(numGames) + 'Games' + 'Gamma' + str(brain.GAMMA) + \
-               'Alpha' + str(brain.ALPHA) + 'Memory' + str(brain.memSize)+ '.png'    
+    fileName = str(numGames) + 'Games' + 'Gamma' + str(agent.GAMMA) + \
+               'Alpha' + str(agent.ALPHA) + 'Memory' + str(agent.memSize)+ '.png'    
     
 
 
