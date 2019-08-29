@@ -55,8 +55,8 @@ class Agent(object):
         self.replace_target_cnt = replace
         self.Q_eval = DeepQNetwork(alpha)
         self.Q_next = DeepQNetwork(alpha)
-        self.PATH = str("/Users/YELU/Desktop/ML/Reinforcement_Learning/Testing/pyil/Q_eval.pth")
-        #self.Q_eval.load_state_dict(T.load(self.PATH))
+        self.PATH = str("./Q_eval.pth")
+        self.Q_eval.load_state_dict(T.load(self.PATH))
         
 
 
@@ -164,7 +164,7 @@ if __name__ == '__main__':
             state = next_state            
             agent.learn(batch_size)
             lastAction = action
-            env.render()
+            #env.render()
         scores.append(score)
         print('reward:',score)
     x = [i+1 for i in range(numGames)]
