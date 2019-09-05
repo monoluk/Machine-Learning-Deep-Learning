@@ -55,10 +55,9 @@ class Agent(object):
         self.replace_target_cnt = replace
         self.Q_eval = DeepQNetwork(alpha)
         self.Q_next = DeepQNetwork(alpha)
+        self.Q_next.eval()
         self.PATH = str("./Q_eval.pth")
         self.Q_eval.load_state_dict(T.load(self.PATH))
-        
-
 
     def storeTransition(self, state, action, reward, state_):
         if self.memCntr < self.memSize:
@@ -81,7 +80,7 @@ class Agent(object):
         self.Q_eval.optimizer.zero_grad()
         if self.replace_target_cnt is not None and \
            self.learn_step_counter % self.replace_target_cnt == 0:
-            self.Q_next.load_state_dict(self.Q_eval.state_dict())
+           self.Q_next.load_state_dict(self.Q_eval.state_dict())
 
         if self.memCntr+batch_size < self.memSize:
             memStart = int(np.random.choice(range(self.memCntr)))
@@ -108,15 +107,16 @@ class Agent(object):
 
         #Qpred.requires_grad_()
         loss = self.Q_eval.loss(Qtarget, Qpred).to(self.Q_eval.device)
+        #print('loss:', loss.item())
         loss.backward()
         self.Q_eval.optimizer.step()
         T.save(self.Q_eval.state_dict(), self.PATH)
         self.learn_step_counter += 1
 
-        
 
 if __name__ == '__main__':
     env = gym.make('SpaceInvaders-v0')
+    #env = gym.make('Breakout-v0')
     agent = Agent(gamma=0.95, epsilon=1.0, 
                   alpha=0.003, maxMemorySize=5000,
                   replace=None)   
@@ -136,7 +136,7 @@ if __name__ == '__main__':
 
     scores = []
     epsHistory = []
-    numGames = 50
+    numGames = 300
     batch_size=32
     # uncomment the line below to record every episode. 
     # env = wrappers.Monitor(env, "tmp/space-invaders-1", video_callable=lambda episode_id: True, force=True)
@@ -164,14 +164,14 @@ if __name__ == '__main__':
             state = next_state            
             agent.learn(batch_size)
             lastAction = action
-            #env.render()
+           # env.render()
         scores.append(score)
         print('reward:',score)
     x = [i+1 for i in range(numGames)]
     fileName = str(numGames) + 'Games' + 'Gamma' + str(agent.GAMMA) + \
                'Alpha' + str(agent.ALPHA) + 'Memory' + str(agent.memSize)+ '.png'    
     
-
+plotLearning(x, scores, epsHistory, fileName)
 
 def plotLearning(x, scores, epsilons, filename):   
     fig=plt.figure()
@@ -199,7 +199,7 @@ def plotLearning(x, scores, epsilons, filename):
     ax2.yaxis.set_label_position('right') 
     #ax2.tick_params(axis='x', colors="C1")
     ax2.tick_params(axis='y', colors="C1")
+    
+plt.savefig(filename)
 
-    plt.savefig(filename)
 
-    plotLearning(x, scores, epsHistory, fileName)
