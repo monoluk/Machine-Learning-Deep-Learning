@@ -1,6 +1,7 @@
 #!bin/bash
 
-MESSAGE = $1
+MESSAGE=$1
+
 
 git add .
 git commit -m MESSAGE
